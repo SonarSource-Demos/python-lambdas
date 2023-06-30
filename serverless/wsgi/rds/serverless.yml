@@ -1,0 +1,62 @@
+service: example
+
+provider:
+  name: aws
+  runtime: python3.8
+  environment:
+    SECRET_ARN: !Ref DBSecret
+    DATABASE_ARN: ${self:custom.ClusterArn}
+    DATABASE_NAME: ${self:custom.DatabaseName}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - rds-data:BatchExecuteStatement
+        - rds-data:ExecuteStatement
+      Resource:
+        - ${self:custom.ClusterArn}
+    - Effect: Allow
+      Action:
+        - secretsmanager:GetSecretValue
+      Resource:
+        - !Ref DBSecret
+
+plugins:
+  - serverless-wsgi
+  - serverless-python-requirements
+functions:
+  api:
+    handler: wsgi_handler.handler
+    events:
+      - http: ANY /
+      - http: ANY /{proxy+}
+
+custom:
+  wsgi:
+    app: api.app
+  ClusterName: "foo"
+  ClusterArn: arn:aws:rds:${aws:region}:${aws:accountId}:cluster:${self:custom.ClusterName}
+  DatabaseName: "bar"
+  SecretName: "foo.sec"
+
+resources:
+  Resources:
+    Cluster:
+      Type: AWS::RDS::DBCluster
+      Properties:
+          DBClusterIdentifier: ${self:custom.ClusterName}
+          DatabaseName: ${self:custom.DatabaseName}
+          Engine: aurora
+          EngineMode: serverless
+          EngineVersion: 5.6.10a
+          MasterUsername: !Join ['', ['{{resolve:secretsmanager:', !Ref DBSecret, ':SecretString:username}}' ]]
+          MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref DBSecret, ':SecretString:password}}' ]]
+          EnableHttpEndpoint: true
+    DBSecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Name: ${self:custom.SecretName}
+        GenerateSecretString:
+          SecretStringTemplate: !Sub '{"username": "foobar"}'
+          GenerateStringKey: "password"
+          PasswordLength: 30
+          ExcludeCharacters: '"@/\'

@@ -1,0 +1,34 @@
+service: example
+
+provider:
+  name: aws
+  runtime: python3.8
+  environment:
+    DOMAIN_NAME: !Ref Domain
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - sdb:Select
+        - sdb:PutAttributes
+      Resource:
+        - "*"
+
+plugins:
+  - serverless-wsgi
+  - serverless-python-requirements
+
+functions:
+  api:
+    handler: wsgi_handler.handler
+    events:
+      - http: ANY /
+      - http: ANY /{proxy+}
+
+custom:
+  wsgi:
+    app: api.app
+
+resources:
+  Resources:
+    Domain:
+      Type: AWS::SDB::Domain

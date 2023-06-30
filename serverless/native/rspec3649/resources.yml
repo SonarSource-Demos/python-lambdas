@@ -1,0 +1,106 @@
+Resources:
+  # redshift
+  RedshiftCluster:
+    Type: AWS::Redshift::Cluster
+    Properties:
+      ClusterIdentifier: "myredshiftclusterid"
+      ClusterType: single-node
+      NodeType: dc2.large
+      DBName: "dev"
+      MasterUsername: "redshift_data_api_user"
+      MasterUserPassword: "baRba*ba1"
+
+  # athena
+  S3BucketAthenaData:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: athena-s3-serverlessapp
+
+  MyAthenaWorkGroup:
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Name: my-athena-workgroup
+      RecursiveDeleteOption: true
+      State: ENABLED
+      WorkGroupConfiguration:
+        EnforceWorkGroupConfiguration: true
+        ResultConfiguration:
+          OutputLocation: s3://athena-s3-serverlessapp/results/
+
+  MyGlueDatabase:
+    DependsOn: S3BucketAthenaData
+    Type: AWS::Glue::Database
+    Properties:
+      DatabaseInput:
+        Name: my-glue-database
+      CatalogId: !Ref AWS::AccountId
+
+  MyGlueTable:
+    DependsOn: MyGlueDatabase
+    Type: AWS::Glue::Table
+    Properties:
+      DatabaseName: !Ref MyGlueDatabase
+      CatalogId: !Ref AWS::AccountId
+      TableInput:
+        Name: users
+        TableType: EXTERNAL_TABLE
+        Parameters: {
+          "classification": "csv"
+        }
+        StorageDescriptor:
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          Location: "s3://athena-s3-serverlessapp/results/userstable/csv/"
+          SerdeInfo:
+            SerializationLibrary: org.apache.hive.hcatalog.data.JsonSerDe
+          Columns:
+          - Name: username
+            Type: string
+          - Name: password
+            Type: string	
+
+  # common lambda                
+  MyCustomLambdaRole1:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: MyCustomLambdaRole1
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: myPolicyName
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - athena:CreatePreparedStatement
+                  - athena:StartQueryExecution
+                  - athena:GetPreparedStatement
+                  - athena:GetQueryExecution
+                  - athena:GetQueryResults
+                  - glue:GetDatabase
+                  - glue:GetTables
+                  - glue:GetTable
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:ListMultipartUploadParts
+                  - s3:AbortMultipartUpload
+                  - s3:CreateBucket
+                  - s3:PutObject
+                Resource:
+                  - !Sub '${S3BucketAthenaData.Arn}'
+                  - !Sub '${S3BucketAthenaData.Arn}/results/*'
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/my-glue-database
+                  - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/my-glue-database/users
+                  - !Sub arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/my-athena-workgroup
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonRedshiftDataFullAccess
+
+                  

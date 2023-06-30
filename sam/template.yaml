@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: 'AWS SAM app to illustrate Lambda entry points'
+
+Globals:
+  Function:
+    Handler: default.lambda_handler
+
+Parameters:
+  ParamHandler:
+    Type: String
+    Default: index.parameterized_lambda_handler
+
+Resources:
+  PublicApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Auth:
+        ApiKeyRequired: true # sets for all methods
+
+  SimpleFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: SimpleFunction
+      Handler: index.lambda_handler
+      Runtime: python3.6
+      CodeUri: src # relative path to the lambda source code folder
+#     CodeUri: src/index.js # Alternative
+      Events:
+        Api:
+          Type: Api
+#         Type: HttpApi # Alternative
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: /simple
+            Method: get
+            
+  SubfolderFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: SubfolderFunction
+      Handler: sub/index.lambda_handler
+      Runtime: python3.6
+      CodeUri: src
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: /subfolder
+            Method: get
+
+  # This function's property is defined in the "Parameters" section
+  ParametersFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: ParametersFunction
+      Handler:
+        Ref: ParamHandler
+      #Handler: !Ref ParamHandler # Alternative short syntax
+      Runtime: python3.6
+      CodeUri: src
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: /parameters
+            Method: get
+
+  # This function has no "handler" property defined
+  # It inherits the value from the "Globals" section
+  DefaultHandler:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: DefaultHandler
+      Runtime: python3.6
+      CodeUri: src
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: /default
+            Method: get
+
+  # This function has no "handler" propety defined
+  # The code of the Lambda fonction is define in the "InlineCode" property
+  InlineFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: InlineFunction
+      Runtime: python3.6
+      Handler: index.lambda_handler
+      InlineCode: |
+        import os
+        import json
+                
+        def lambda_handler(event, context):
+            # in the query strings: foo=3*3
+            result = eval(event["queryStringParameters"]["foo"]); # Noncompliant (S5334)
+            return {
+                "statusCode": 200,
+                "headers": {
+                    "Content-Type": "application/json"
+                },
+                "body": json.dumps({
+                    "result ": result
+                })
+            }
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref PublicApi
+            Path: /inline-function
+            Method: get

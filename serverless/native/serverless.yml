@@ -1,0 +1,63 @@
+service: myservice
+frameworkVersion: '2'
+
+provider:
+  name: aws
+  runtime: python3.6
+  lambdaHashingVersion: 20201221
+
+package:
+  individually: true
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: non-linux
+
+  data:
+    handler: handler.test3
+    events:
+      - http:
+          path: /test3
+          method: get
+
+functions:
+  s3649:
+    handler: handler.mylambda
+    module: rspec3649
+    role: MyCustomLambdaRole1
+    events:
+      - http:
+          path: /s3649
+          method: get
+
+  s5147:
+    handler: handler.mylambda
+    module: rspec5147
+    role: MyCustomLambdaRole2
+    events:
+      - http:
+          path: /s5147
+          method: get
+
+  test1:
+    handler: handler.test1
+    events:
+      - http:
+          path: /test1
+          method: get
+  test2:
+    handler: handler.test2
+    events:
+      - httpApi:
+          path: /test2
+          method: get
+
+  test3: ${self:custom.data}
+  test4: ${file(sub/external.yml):data}
+
+resources:
+  - ${file(./rspec3649/resources.yml)}
+  - ${file(./rspec5147/resources.yml)}
